@@ -512,7 +512,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool) error {
 				return sess.setState(StateUnbinding)
 			case pdu.SubmitSmRespID, pdu.SubmitMultiRespID, pdu.DataSmID, pdu.DataSmRespID, pdu.DeliverSmRespID,
 				pdu.QuerySmRespID, pdu.CancelSmRespID, pdu.AlertNotificationID, pdu.ReplaceSmRespID, pdu.EnquireLinkID, pdu.EnquireLinkRespID,
-				pdu.GenericNackID:
+				pdu.GenericNackID, pdu.DeliverSmID:
 				return nil
 			}
 		case StateUnbinding:
