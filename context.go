@@ -67,7 +67,7 @@ func (ctx *Context) Respond(resp pdu.PDU, status pdu.Status) error {
 	}
 
 	ctx.Sess.mu.Lock()
-	if err := ctx.Sess.makeTransition(resp.CommandID(), false); err != nil {
+	if err := ctx.Sess.makeTransition(resp.CommandID(), false, ctx.seq); err != nil {
 		ctx.Sess.conf.Logger.ErrorF("transitioning resp pdu: %s %+v", ctx.Sess, err)
 		ctx.Sess.mu.Unlock()
 		return err
