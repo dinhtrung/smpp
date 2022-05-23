@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	smpptime "github.com/ajankovic/smpp/time"
+	smpptime "github.com/sam-ish/smpp/time"
 )
 
 // SubmitSm contains mandatory fields for submiting short message.

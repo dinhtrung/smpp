@@ -27,14 +27,14 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 
 // Server implements SMPP SMSC server.
 type Server struct {
-	Addr        string
-	SessionConf *SessionConf
-
-	wg           sync.WaitGroup
-	mu           sync.Mutex
-	listeners    map[net.Listener]struct{}
-	doneChan     chan struct{}
+	Addr         string
+	SessionConf  *SessionConf
 	EsmeSessions map[string]*Session
+
+	wg        sync.WaitGroup
+	mu        sync.Mutex
+	listeners map[net.Listener]struct{}
+	doneChan  chan struct{}
 }
 
 // NewServer creates new SMPP server for managing SMSC sessions.
