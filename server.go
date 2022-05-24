@@ -2,6 +2,7 @@ package smpp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -114,6 +115,16 @@ func (srv *Server) Unbind(ctx context.Context) error {
 	}
 	srv.mu.Unlock()
 	return srv.Close()
+}
+
+// GetSesion returns an active bound session.
+func (srv *Server) GetSesion() (*Session, error) {
+	for _, sess := range srv.EsmeSessions {
+		if sess.state == StateBoundRx || sess.state == StateBoundTRx {
+			return sess, nil
+		}
+	}
+	return nil, errors.New("No available sessions")
 }
 
 // Close implements closer interface.
