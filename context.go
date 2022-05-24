@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ajankovic/smpp/pdu"
+	"github.com/sam-ish/smpp/pdu"
 )
 
 // Context represents container for SMPP request related information.
@@ -25,7 +25,7 @@ func (ctx *Context) DebugReq() string {
 
 // SystemID returns SystemID of the bounded peer that request came from.
 func (ctx *Context) SystemID() string {
-	return ctx.Sess.conf.SystemID
+	return ctx.Sess.Conf.SystemID
 }
 
 // SessionID returns ID of the session that this context is responsible for handling this request.
@@ -68,16 +68,16 @@ func (ctx *Context) Respond(resp pdu.PDU, status pdu.Status) error {
 
 	ctx.Sess.mu.Lock()
 	if err := ctx.Sess.makeTransition(resp.CommandID(), false, ctx.seq); err != nil {
-		ctx.Sess.conf.Logger.ErrorF("transitioning resp pdu: %s %+v", ctx.Sess, err)
+		ctx.Sess.Conf.Logger.ErrorF("transitioning resp pdu: %s %+v", ctx.Sess, err)
 		ctx.Sess.mu.Unlock()
 		return err
 	}
 	if _, err := ctx.Sess.enc.Encode(resp, pdu.EncodeStatus(status), pdu.EncodeSeq(ctx.seq)); err != nil {
-		ctx.Sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", ctx.Sess, err)
+		ctx.Sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", ctx.Sess, err)
 		ctx.Sess.mu.Unlock()
 		return err
 	}
-	ctx.Sess.conf.Logger.InfoF("sent response: %s %s %+v", ctx.Sess, resp.CommandID(), resp)
+	ctx.Sess.Conf.Logger.InfoF("sent response: %s %s %+v", ctx.Sess, resp.CommandID(), resp)
 	ctx.Sess.mu.Unlock()
 
 	return nil

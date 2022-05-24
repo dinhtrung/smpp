@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ajankovic/smpp/pdu"
+	"github.com/sam-ish/smpp/pdu"
 )
 
 var smppLogs bool
@@ -152,8 +152,8 @@ type response struct {
 
 // Session is the engine that coordinates SMPP protocol for bounded peers.
 type Session struct {
-	conf     *SessionConf
-	rwc      io.ReadWriteCloser
+	Conf     *SessionConf
+	Rwc      io.ReadWriteCloser
 	enc      *pdu.Encoder
 	dec      *pdu.Decoder
 	wg       sync.WaitGroup
@@ -191,8 +191,8 @@ func NewSession(rwc io.ReadWriteCloser, conf SessionConf) *Session {
 		conf.ID = genSessionID()
 	}
 	sess := &Session{
-		conf:   &conf,
-		rwc:    rwc,
+		Conf:   &conf,
+		Rwc:    rwc,
 		enc:    pdu.NewEncoder(rwc, conf.Sequencer),
 		dec:    pdu.NewDecoder(rwc),
 		sent:   make(map[uint32]chan response, conf.SendWinSize),
@@ -205,13 +205,13 @@ func NewSession(rwc io.ReadWriteCloser, conf SessionConf) *Session {
 
 // ID uniquely identifies the session.
 func (sess *Session) ID() string {
-	return sess.conf.ID
+	return sess.Conf.ID
 }
 
 // SystemID identifies connected peer.
 func (sess *Session) SystemID() string {
-	if sess.conf.SystemID != "" {
-		return sess.conf.SystemID
+	if sess.Conf.SystemID != "" {
+		return sess.Conf.SystemID
 	}
 	if sess.systemID != "" {
 		return sess.systemID
@@ -220,18 +220,18 @@ func (sess *Session) SystemID() string {
 }
 
 func (sess *Session) String() string {
-	return fmt.Sprintf("(%s:%s:%s)", sess.conf.Type, sess.SystemID(), sess.conf.ID)
+	return fmt.Sprintf("(%s:%s:%s)", sess.Conf.Type, sess.SystemID(), sess.Conf.ID)
 }
 
 func (sess *Session) RemoteAddr() string {
-	if ra, ok := sess.rwc.(NetworkAddresser); ok {
+	if ra, ok := sess.Rwc.(NetworkAddresser); ok {
 		return ra.RemoteAddr().String()
 	}
 	return ""
 }
 
 func (sess *Session) LocalAddr() string {
-	if ra, ok := sess.rwc.(NetworkAddresser); ok {
+	if ra, ok := sess.Rwc.(NetworkAddresser); ok {
 		return ra.LocalAddr().String()
 	}
 	return ""
@@ -247,9 +247,9 @@ func (sess *Session) serve() {
 		h, p, err := sess.dec.Decode()
 		if err != nil {
 			if err == io.EOF {
-				sess.conf.Logger.InfoF("decoding pdu: %s %+v", sess, err)
+				sess.Conf.Logger.InfoF("decoding pdu: %s %+v", sess, err)
 			} else {
-				sess.conf.Logger.ErrorF("decoding pdu: %s %+v", sess, err)
+				sess.Conf.Logger.ErrorF("decoding pdu: %s %+v", sess, err)
 			}
 			sess.shutdown()
 			return
@@ -257,14 +257,14 @@ func (sess *Session) serve() {
 		sess.mu.Lock()
 		sess.systemID = pdu.SystemID(p)
 		if err := sess.makeTransition(h.CommandID(), true, h.Sequence()); err != nil {
-			sess.conf.Logger.ErrorF("transitioning upon receive: %s %+v", sess, err)
+			sess.Conf.Logger.ErrorF("transitioning upon receive: %s %+v", sess, err)
 			sess.mu.Unlock()
 			continue
 		}
 		// Handle PDU requests.
 		if pdu.IsRequest(h.CommandID()) {
-			sess.conf.Logger.InfoF("received request: %s %s%+v", sess, p.CommandID(), p)
-			if sess.reqCount == sess.conf.ReqWinSize {
+			sess.Conf.Logger.InfoF("received request: %s %s%+v", sess, p.CommandID(), p)
+			if sess.reqCount == sess.Conf.ReqWinSize {
 				sess.throttle(h.Sequence())
 			} else {
 				sess.wg.Add(1)
@@ -276,7 +276,7 @@ func (sess *Session) serve() {
 		}
 		// Handle PDU responses.
 		if l, ok := sess.sent[h.Sequence()]; ok {
-			sess.conf.Logger.InfoF("received response: %s %s%+v", sess, p.CommandID(), p)
+			sess.Conf.Logger.InfoF("received response: %s %s%+v", sess, p.CommandID(), p)
 			delete(sess.sent, h.Sequence())
 			sess.mu.Unlock()
 
@@ -286,7 +286,7 @@ func (sess *Session) serve() {
 			}
 			continue
 		}
-		sess.conf.Logger.ErrorF("unexpected response: %s %s%+v", sess, p.CommandID(), p)
+		sess.Conf.Logger.ErrorF("unexpected response: %s %s%+v", sess, p.CommandID(), p)
 		sess.mu.Unlock()
 	}
 }
@@ -294,13 +294,13 @@ func (sess *Session) serve() {
 func (sess *Session) throttle(seq uint32) {
 	resp := pdu.GenericNack{}
 	if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusThrottled), pdu.EncodeSeq(seq)); err != nil {
-		sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+		sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 		return
 	}
 }
 
 func (sess *Session) handleRequest(ctx context.Context, h pdu.Header, req pdu.PDU) {
-	ctx, cancel := context.WithTimeout(ctx, sess.conf.WindowTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sess.Conf.WindowTimeout)
 	defer func() {
 		cancel()
 		sess.mu.Lock()
@@ -314,7 +314,7 @@ func (sess *Session) handleRequest(ctx context.Context, h pdu.Header, req pdu.PD
 		seq:  h.Sequence(),
 		req:  req,
 	}
-	sess.conf.Handler.ServeSMPP(sessCtx)
+	sess.Conf.Handler.ServeSMPP(sessCtx)
 
 	if sessCtx.close {
 		sess.shutdown()
@@ -337,14 +337,14 @@ func (sess *Session) Close() error {
 		delete(sess.sent, k)
 		close(l)
 	}
-	sess.rwc.Close()
+	sess.Rwc.Close()
 	if err := sess.setState(StateClosed); err != nil {
 		sess.mu.Unlock()
 		return err
 	}
 	sess.mu.Unlock()
 	sess.wg.Wait()
-	sess.conf.Logger.InfoF("session closed: %s", sess)
+	sess.Conf.Logger.InfoF("session closed: %s", sess)
 	close(sess.closed)
 	return nil
 }
@@ -383,8 +383,8 @@ func (sess *Session) setState(state SessionState) error {
 		return fmt.Errorf("smpp: session %s already in closed state %s", sess, state)
 	}
 	sess.state = state
-	if hook := sess.conf.SessionState; hook != nil {
-		hook(sess.conf.ID, sess.SystemID(), sess.state)
+	if hook := sess.Conf.SessionState; hook != nil {
+		hook(sess.Conf.ID, sess.SystemID(), sess.state)
 	}
 	return nil
 }
@@ -396,12 +396,12 @@ func (sess *Session) Send(ctx context.Context, req pdu.PDU) (pdu.PDU, error) {
 		return nil, Error{Msg: "smpp: sending nil pdu"}
 	}
 	sess.mu.Lock()
-	if len(sess.sent) == sess.conf.SendWinSize {
+	if len(sess.sent) == sess.Conf.SendWinSize {
 		sess.mu.Unlock()
 		return nil, Error{Msg: "smpp: sending window closed", Temp: true}
 	}
 	if err := sess.makeTransition(req.CommandID(), false, 0); err != nil {
-		sess.conf.Logger.ErrorF("transitioning before send: %s %+v", sess, err)
+		sess.Conf.Logger.ErrorF("transitioning before send: %s %+v", sess, err)
 		sess.mu.Unlock()
 		return nil, err
 	}
@@ -412,7 +412,7 @@ func (sess *Session) Send(ctx context.Context, req pdu.PDU) (pdu.PDU, error) {
 	}
 	l := make(chan response, 1)
 	sess.sent[seq] = l
-	sess.conf.Logger.InfoF("request sent: %s %s%+v", sess, req.CommandID(), req)
+	sess.Conf.Logger.InfoF("request sent: %s %s%+v", sess, req.CommandID(), req)
 	sess.mu.Unlock()
 	select {
 	case resp, ok := <-l:
@@ -434,7 +434,7 @@ func (sess *Session) Send(ctx context.Context, req pdu.PDU) (pdu.PDU, error) {
 // Must be guarded by mutex.
 func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32) error {
 	// If sending from ESME or receiving on SMSC we have the same rules.
-	if (sess.conf.Type == ESME && !received) || (sess.conf.Type == SMSC && received) {
+	if (sess.Conf.Type == ESME && !received) || (sess.Conf.Type == SMSC && received) {
 		switch sess.state {
 		case StateOpen:
 			switch ID {
@@ -456,7 +456,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 			default:
 				resp := pdu.NewPDU(ID | pdu.GenericNackID)
 				if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusInvCmdID), pdu.EncodeSeq(seq)); err != nil {
-					sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+					sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 					return err
 				}
 			}
@@ -471,7 +471,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 			default:
 				resp := pdu.NewPDU(ID | pdu.GenericNackID)
 				if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusInvCmdID), pdu.EncodeSeq(seq)); err != nil {
-					sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+					sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 					return err
 				}
 			}
@@ -486,7 +486,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 			default:
 				resp := pdu.NewPDU(ID | pdu.GenericNackID)
 				if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusInvCmdID), pdu.EncodeSeq(seq)); err != nil {
-					sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+					sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 					return err
 				}
 			}
@@ -497,7 +497,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 		case StateClosing, StateClosed:
 		}
 		// If sending from SMSC or receiving on ESME we have the same rules.
-	} else if (sess.conf.Type == SMSC && !received) || (sess.conf.Type == ESME && received) {
+	} else if (sess.Conf.Type == SMSC && !received) || (sess.Conf.Type == ESME && received) {
 		switch sess.state {
 		case StateOpen:
 			switch ID {
@@ -526,7 +526,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 			default:
 				resp := pdu.NewPDU(ID | pdu.GenericNackID)
 				if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusInvCmdID), pdu.EncodeSeq(seq)); err != nil {
-					sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+					sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 					return err
 				}
 			}
@@ -540,7 +540,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 			default:
 				resp := pdu.NewPDU(ID | pdu.GenericNackID)
 				if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusInvCmdID), pdu.EncodeSeq(seq)); err != nil {
-					sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+					sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 					return err
 				}
 			}
@@ -555,7 +555,7 @@ func (sess *Session) makeTransition(ID pdu.CommandID, received bool, seq uint32)
 			default:
 				resp := pdu.NewPDU(ID | pdu.GenericNackID)
 				if _, err := sess.enc.Encode(resp, pdu.EncodeStatus(pdu.StatusInvCmdID), pdu.EncodeSeq(seq)); err != nil {
-					sess.conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
+					sess.Conf.Logger.ErrorF("error encoding pdu: %s %+v", sess, err)
 					return err
 				}
 			}

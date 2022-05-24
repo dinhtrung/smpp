@@ -2,6 +2,7 @@ package smpp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -27,14 +28,14 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 
 // Server implements SMPP SMSC server.
 type Server struct {
-	Addr        string
-	SessionConf *SessionConf
-
-	wg           sync.WaitGroup
-	mu           sync.Mutex
-	listeners    map[net.Listener]struct{}
-	doneChan     chan struct{}
+	Addr         string
+	SessionConf  *SessionConf
 	EsmeSessions map[string]*Session
+
+	wg        sync.WaitGroup
+	mu        sync.Mutex
+	listeners map[net.Listener]struct{}
+	doneChan  chan struct{}
 }
 
 // NewServer creates new SMPP server for managing SMSC sessions.
@@ -114,6 +115,16 @@ func (srv *Server) Unbind(ctx context.Context) error {
 	}
 	srv.mu.Unlock()
 	return srv.Close()
+}
+
+// GetSesion returns an active bound session.
+func (srv *Server) GetSesion() (*Session, error) {
+	for _, sess := range srv.EsmeSessions {
+		if sess.state == StateBoundRx || sess.state == StateBoundTRx {
+			return sess, nil
+		}
+	}
+	return nil, errors.New("No available sessions")
 }
 
 // Close implements closer interface.

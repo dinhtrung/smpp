@@ -30,6 +30,12 @@ func main() {
 					fail("Invalid PDU in context error: %+v", err)
 				}
 				resp := btrx.Response(systemID)
+				// Validate the credentials
+				if !isValidBindAccount(btrx.SystemID, btrx.Password) {
+					if err := ctx.Respond(resp, pdu.StatusInvPaswd); err != nil {
+						fail("Server can't respond to the Binding request: %+v", err)
+					}
+				}
 				if err := ctx.Respond(resp, pdu.StatusOK); err != nil {
 					fail("Server can't respond to the Binding request: %+v", err)
 				}
@@ -59,15 +65,20 @@ func main() {
 	}
 	srv := smpp.NewServer(serverAddr, sessConf)
 
-	fmt.Fprintf(os.Stderr, "'%s' is listening on '%s'\n", systemID, serverAddr)
+	fmt.Println("'%s' is listening on '%s'", systemID, serverAddr)
 	err := srv.ListenAndServe()
 	if err != nil {
 		fail("Serving exited with error: %+v", err)
 	}
-	fmt.Fprintf(os.Stderr, "Server closed\n")
+	fmt.Println("Server closed")
 }
 
 func fail(msg string, params ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg+"\n", params...)
+	fmt.Println(msg+"\n", params)
 	os.Exit(1)
+}
+
+func isValidBindAccount(systemID string, password string) bool {
+	// ...
+	return true
 }

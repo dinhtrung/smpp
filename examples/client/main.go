@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ajankovic/smpp"
-	"github.com/ajankovic/smpp/pdu"
+	"github.com/sam-ish/smpp"
+	"github.com/sam-ish/smpp/pdu"
 )
 
 var (
